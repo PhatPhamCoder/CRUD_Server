@@ -14,6 +14,7 @@ module.exports = (app) => {
       body("password", constantNotify.VALIDATE_PASSWORD).isLength({ min: 8 }),
       body("email", constantNotify.NOT_EMPTY).notEmpty(),
     ],
+    verifyToken,
     adminControler.register,
   );
   router.post(
@@ -25,11 +26,11 @@ module.exports = (app) => {
     ],
     adminControler.login,
   );
-  router.get("/getall", adminControler.getAll);
-  router.get("/getbyid/:id", adminControler.getById);
-  router.put("/update/:id", adminControler.update);
-  router.delete("/delete/:id", adminControler.delete);
-  router.put("/active/:id", adminControler.active);
+  router.get("/getall", verifyToken, adminControler.getAll);
+  router.get("/getbyid/:id", verifyToken, adminControler.getById);
+  router.put("/update/:id", verifyToken, adminControler.update);
+  router.delete("/delete/:id", verifyToken, adminControler.delete);
+  router.put("/active/:id", verifyToken, adminControler.active);
   router.put("/change-password/:id", adminControler.changePassword);
 
   app.use("/api/v1/admin", router);
