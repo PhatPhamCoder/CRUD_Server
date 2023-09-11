@@ -30,6 +30,7 @@ module.exports = (app) => {
   router.put("/update/:id", adminControler.update);
   router.delete("/delete/:id", adminControler.delete);
   router.put("/active/:id", adminControler.active);
+  router.put("/change-password/:id", adminControler.changePassword);
 
   app.use("/api/v1/admin", router);
 };

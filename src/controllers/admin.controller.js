@@ -73,7 +73,7 @@ exports.register = async (req, res) => {
           email,
           phoneNumber,
           password: hashPass,
-          active: active == "true" ? true : false,
+          active: active ? active : true,
           created_at: Date.now(),
         });
         delete admin.refresh_token;
@@ -535,6 +535,89 @@ exports.active = async (req, res) => {
       });
     });
   } catch (error) {
+    return res.send({
+      result: false,
+      error: [{ msg: constantNotify.ERROR }],
+    });
+  }
+};
+
+// Change Password
+exports.changePassword = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { currentPassword, newPassword } = req.body;
+    // Validate currentPassword
+    if (!regex.regexPass.test(currentPassword)) {
+      return res.send({
+        result: false,
+        error: [
+          {
+            param: "password",
+            msg: constantNotify.VALIDATE_PASSWORD,
+          },
+        ],
+      });
+    }
+
+    // Validate newPassword
+    if (!regex.regexPass.test(newPassword)) {
+      return res.send({
+        result: false,
+        error: [
+          {
+            param: "password",
+            msg: constantNotify.VALIDATE_PASSWORD,
+          },
+        ],
+      });
+    }
+
+    db.query(
+      `SELECT password FROM ${tableAdmin} WHERE id = ${id}`,
+      async (err, dataRes) => {
+        if (err) {
+          return res.send({
+            result: false,
+          });
+        }
+
+        if (dataRes.length === 0) {
+          return res.send({
+            result: false,
+            error: [{ msg: `ID ${constantNotify.NOT_EXITS}` }],
+          });
+        }
+
+        const passwordCompare = await bcrypt.compare(
+          currentPassword,
+          dataRes[0]?.password,
+        );
+
+        if (!passwordCompare) {
+          return res.send({
+            result: false,
+            error: [{ msg: `Current Password ${constantNotify.IS_WRONG}` }],
+          });
+        }
+
+        adminService.changePassword(id, newPassword, (err, res_) => {
+          if (err) {
+            return res.send({
+              result: false,
+              error: [err],
+            });
+          }
+
+          return res.send({
+            result: true,
+            data: { msg: constantNotify.UPDATE_DATA_SUCCESS },
+          });
+        });
+      },
+    );
+  } catch (error) {
+    console.error(error);
     return res.send({
       result: false,
       error: [{ msg: constantNotify.ERROR }],
