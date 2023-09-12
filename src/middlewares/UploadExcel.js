@@ -2,7 +2,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 // Đường dẫn lưu File
-const dirExcel = "./uploads/excel/student/";
+const dirExcel = "./uploads/excel/";
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {

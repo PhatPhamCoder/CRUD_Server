@@ -6,10 +6,18 @@ const Admin = require("../models/admin.model");
 const jwtDecode = require("jwt-decode");
 const { signAccesToken, signRefreshToken } = require("../middlewares/init_jwt");
 const JWT = require("jsonwebtoken");
+const XLSX = require("xlsx");
+const fs = require("fs");
+const sharp = require("sharp");
+const path = require("path");
+const __basedir = path.resolve();
 const constantNotify = require("../Utils/contanstNotify");
 const bcrypt = require("bcrypt");
 const tableAdmin = "tbl_admin";
 const adminService = require("../services/admin.service");
+
+var directoryPath = path.join(__basedir, "/uploads/avatar/images/");
+var directoryThumb = path.join(__basedir, "/uploads/avatar/thumb/");
 
 // Register
 exports.register = async (req, res) => {
@@ -22,6 +30,7 @@ exports.register = async (req, res) => {
       });
     }
     const { name, email, phoneNumber, password, active } = req.body;
+    console.log({ name, email, phoneNumber, password, active });
     // Validate Email
     if (!regex.regexEmail.test(email)) {
       return res.send({
@@ -47,57 +56,178 @@ exports.register = async (req, res) => {
         ],
       });
     }
-
-    db.query(
-      `SELECT email FROM ${tableAdmin} WHERE email = "${email}"`,
-      async (err, dataRes) => {
-        if (err) {
-          return res.send({
-            result: false,
-            error: [{ msg: constantNotify.ERROR }],
-          });
-        }
-
-        if (dataRes.length !== 0) {
-          return res.send({
-            result: false,
-            error: [{ msg: `Email ${constantNotify.ALREADY_EXIST}` }],
-          });
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        const hashPass = await bcrypt.hash(password, salt);
-
-        const admin = new Admin({
-          name,
-          email,
-          phoneNumber,
-          password: hashPass,
-          active: active ? active : true,
-          created_at: Date.now(),
-        });
-        delete admin.refresh_token;
-        delete admin.updated_at;
-
-        adminService.register(admin, (err, res_) => {
+    if (!req.file) {
+      db.query(
+        `SELECT email FROM ${tableAdmin} WHERE email = "${email}"`,
+        async (err, dataRes) => {
           if (err) {
             return res.send({
               result: false,
-              error: [err],
+              error: [{ msg: constantNotify.ERROR }],
             });
           }
-          admin.id = res_;
-          return res.send({
-            result: true,
-            data: {
-              msg: constantNotify.ADD_DATA_SUCCESS,
-              newData: admin,
-            },
+
+          if (dataRes.length !== 0) {
+            return res.send({
+              result: false,
+              error: [{ msg: `Email ${constantNotify.ALREADY_EXIST}` }],
+            });
+          }
+
+          const salt = await bcrypt.genSalt(10);
+          const hashPass = await bcrypt.hash(password, salt);
+
+          const admin = new Admin({
+            name,
+            email,
+            phoneNumber,
+            password: hashPass,
+            active: active == "true" ? true : false,
+            created_at: Date.now(),
           });
+          delete admin.avatar;
+          delete admin.refresh_token;
+          delete admin.updated_at;
+
+          adminService.register(admin, (err, res_) => {
+            if (err) {
+              return res.send({
+                result: false,
+                error: [err],
+              });
+            }
+            admin.id = res_;
+            return res.send({
+              result: true,
+              data: {
+                msg: constantNotify.ADD_DATA_SUCCESS,
+                newData: admin,
+              },
+            });
+          });
+        },
+      );
+    }
+    if (req.file) {
+      const maxSize = 2 * 1024 * 1024;
+      if (req.file.size < maxSize) {
+        const fileName = req.file.filename;
+        db.query(
+          `SELECT email FROM ${tableAdmin} WHERE email = "${email}"`,
+          async (err, dataRes) => {
+            if (err) {
+              return res.send({
+                result: false,
+                error: [{ msg: constantNotify.ERROR }],
+              });
+            }
+
+            if (dataRes.length !== 0) {
+              return res.send({
+                result: false,
+                error: [{ msg: `Email ${constantNotify.ALREADY_EXIST}` }],
+              });
+            }
+
+            const salt = await bcrypt.genSalt(10);
+            const hashPass = await bcrypt.hash(password, salt);
+
+            sharp(req?.file?.path)
+              .resize({ width: 150, height: 150 })
+              .toFile(`uploads/avatar/thumb/` + fileName, async (err) => {
+                if (err) {
+                  if (fs.existsSync(directoryPath + fileName)) {
+                    await fs.unlinkSync(directoryPath + fileName);
+                  }
+
+                  return res.send({
+                    result: false,
+                    error: [{ msg: constantNotify.ERROR }],
+                  });
+                }
+
+                const admin = new Admin({
+                  name,
+                  email,
+                  phoneNumber,
+                  avatar: fileName,
+                  password: hashPass,
+                  active: active == "true" ? true : false,
+                  created_at: Date.now(),
+                });
+                delete admin.refresh_token;
+                delete admin.updated_at;
+
+                adminService.register(admin, (err, res_) => {
+                  if (err) {
+                    return res.send({
+                      result: false,
+                      error: [err],
+                    });
+                  }
+                  admin.id = res_;
+                  return res.send({
+                    result: true,
+                    data: {
+                      msg: constantNotify.ADD_DATA_SUCCESS,
+                      newData: admin,
+                    },
+                  });
+                });
+              });
+          },
+        );
+      } else {
+        if (
+          fs.existsSync(directoryPath + req.file.filename) &&
+          fs.existsSync(directoryThumb + req.file.filename)
+        ) {
+          await fs.unlinkSync(directoryPath + req.file.filename);
+          await fs.unlinkSync(directoryThumb + req.file.filename);
+        }
+        if (
+          fs.existsSync(directoryPath + req.file.filename) &&
+          !fs.existsSync(directoryThumb + req.file.filename)
+        ) {
+          await fs.unlinkSync(directoryPath + req.file.filename);
+        }
+
+        if (
+          !fs.existsSync(directoryPath + req.file.filename) &&
+          fs.existsSync(directoryThumb + req.file.filename)
+        ) {
+          await fs.unlinkSync(directoryPath + req.file.filename);
+        }
+
+        return res.send({
+          result: false,
+          error: [{ msg: constantNotify.VALIDATE_FILE_SIZE }],
         });
-      },
-    );
+      }
+    }
   } catch (error) {
+    if (req.file) {
+      if (
+        fs.existsSync(directoryPath + req.file.filename) &&
+        fs.existsSync(directoryThumb + req.file.filename)
+      ) {
+        await fs.unlinkSync(directoryPath + req.file.filename);
+        await fs.unlinkSync(directoryThumb + req.file.filename);
+      }
+      if (
+        fs.existsSync(directoryPath + req.file.filename) &&
+        !fs.existsSync(directoryThumb + req.file.filename)
+      ) {
+        await fs.unlinkSync(directoryPath + req.file.filename);
+      }
+
+      if (
+        !fs.existsSync(directoryPath + req.file.filename) &&
+        fs.existsSync(directoryThumb + req.file.filename)
+      ) {
+        await fs.unlinkSync(directoryPath + req.file.filename);
+      }
+    }
     return res.send({
       result: false,
       error: [{ msg: constantNotify.ERROR }],
@@ -240,7 +370,7 @@ exports.refreshToken = async (req, res) => {
                 const dataSendEmail = {
                   to: data_[0]?.email,
                   text: "Hey user",
-                  subject: "[TOEICUNGDUNG] CẢNH BÁO ĐĂNG NHẬP BẤT THƯỜNG",
+                  subject: "[OPTECH] CẢNH BÁO ĐĂNG NHẬP BẤT THƯỜNG",
                   html: `Hi bạn,
                     Chúng tôi nghi ngờ tài khoản của bạn đăng nhập bất thường tại địa chỉ IP: ${
                       results["Wi-Fi"][0] || results["Ethernet"][0]
@@ -386,7 +516,7 @@ exports.getById = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const id = req.params.id;
-    const { name, email, phoneNumber } = req.body;
+    const { name, email, phoneNumber, active } = req.body;
 
     // Validate Email
     if (!regex.regexEmail.test(email)) {
@@ -427,7 +557,7 @@ exports.update = async (req, res) => {
         if (dataRes.length !== 0 && id != dataRes[0]?.id) {
           return res.send({
             result: false,
-            errpr: [{ msg: `Email ${constantNotify.ALREADY_EXIST}` }],
+            error: [{ msg: `Email ${constantNotify.ALREADY_EXIST}` }],
           });
         }
 
@@ -435,10 +565,10 @@ exports.update = async (req, res) => {
           name,
           email,
           phoneNumber,
+          active,
           updated_at: Date.now(),
         });
         delete admin.created_at;
-        delete admin.active;
         delete admin.password;
         delete admin.refresh_token;
         adminService.update(id, admin, (err, res_) => {
@@ -472,7 +602,7 @@ exports.delete = async (req, res) => {
   try {
     const id = req.params.id;
     db.query(
-      `SELECT id,email FROM ${tableAdmin} WHERE id = ${id}`,
+      `SELECT id,email,avatar FROM ${tableAdmin} WHERE id = ${id}`,
       (err, dataRes) => {
         if (err) {
           return res.send({
@@ -488,12 +618,36 @@ exports.delete = async (req, res) => {
           });
         }
 
-        adminService.delete(id, (err, res_) => {
+        adminService.delete(id, async (err, res_) => {
           if (err) {
             return res.send({
               result: false,
               error: [err],
             });
+          }
+
+          const directoryPath = path.join(__basedir, "/uploads/avatar/images/");
+          const directoryThumb = path.join(__basedir, "/uploads/avatar/thumb/");
+
+          if (
+            fs.existsSync(directoryPath + dataRes[0]?.avatar) &&
+            fs.existsSync(directoryThumb + dataRes[0]?.avatar)
+          ) {
+            await fs.unlinkSync(directoryPath + dataRes[0]?.avatar);
+            await fs.unlinkSync(directoryThumb + dataRes[0]?.avatar);
+          }
+          if (
+            fs.existsSync(directoryPath + dataRes[0]?.avatar) &&
+            !fs.existsSync(directoryThumb + dataRes[0]?.avatar)
+          ) {
+            await fs.unlinkSync(directoryPath + dataRes[0]?.avatar);
+          }
+
+          if (
+            !fs.existsSync(directoryPath + dataRes[0]?.avatar) &&
+            fs.existsSync(directoryThumb + dataRes[0]?.avatar)
+          ) {
+            await fs.unlinkSync(directoryPath + dataRes[0]?.avatar);
           }
 
           return res.send({
@@ -618,6 +772,286 @@ exports.changePassword = async (req, res) => {
     );
   } catch (error) {
     console.error(error);
+    return res.send({
+      result: false,
+      error: [{ msg: constantNotify.ERROR }],
+    });
+  }
+};
+
+// Export excel
+exports.exportExcel = async (req, res) => {
+  try {
+    adminService.exportExcel((err, res_) => {
+      if (err) {
+        return res.send({
+          result: false,
+          error: [err],
+        });
+      }
+
+      return res.send({
+        result: true,
+        data: res_,
+      });
+    });
+  } catch (error) {
+    return res.send({
+      result: false,
+      error: [{ msg: constantNotify.ERROR }],
+    });
+  }
+};
+
+// import excel
+exports.importExcel = async (req, res) => {
+  try {
+    const fileName = req.file.filename;
+    const workBook = XLSX.readFile(req?.file?.path);
+    const workSheet = workBook.Sheets[workBook.SheetNames[0]];
+    const dataExcel = XLSX.utils.sheet_to_json(workSheet);
+    if (dataExcel?.length > 1000) {
+      return res.send({
+        result: false,
+        error: [{ msg: constantNotify.DATALIMIT1000 }],
+      });
+    }
+    const queryPromse = [];
+    dataExcel?.forEach((item, index) => {
+      queryPromse.push(
+        new Promise((resolve, reject) => {
+          const query = `SELECT email FROM ${tableAdmin} WHERE email = "${item["email"]}"`;
+          db.query(query, (err, dataRes) => {
+            if (err) {
+              reject(err);
+            }
+            resolve({ dataRes, index: ++index });
+          });
+        }),
+      );
+    });
+    await Promise.all(queryPromse)
+      .then((data) => {
+        const dataSame = [];
+        data?.forEach((item) => {
+          if (item.dataRes?.length > 0) {
+            dataSame.push(item.index);
+          }
+        });
+        return dataSame;
+      })
+      .then(async (data) => {
+        const directoryExcel = __basedir + "/uploads/excel/";
+        if (data.length > 0) {
+          if (fs.existsSync(directoryExcel + fileName)) {
+            await fs.unlinkSync(directoryExcel + fileName);
+          }
+          return res.send({
+            result: false,
+            error: [{ msg: `Tài khoản Admin STT ${data.join()} đã tồn tại` }],
+          });
+        }
+
+        const dataAdmin = dataExcel?.map((item) => {
+          const password = item["password"];
+          const salt = bcrypt.genSaltSync(10);
+          const hashPassword = bcrypt.hashSync(password, salt);
+          return {
+            name: item["name"],
+            password: hashPassword,
+            phoneNumber: item["phoneNumber"],
+            email: item["email"],
+            active: item["active"],
+            created_at: Date.now(),
+          };
+        });
+
+        adminService.importExcel(dataAdmin, (err, res_) => {
+          if (err) {
+            return res.send({
+              result: false,
+              error: [err],
+            });
+          }
+
+          return res.send({
+            result: true,
+            data: {
+              msg: constantNotify.ADD_DATA_SUCCESS,
+              newData: dataAdmin,
+            },
+          });
+        });
+      });
+  } catch (error) {
+    return res.send({
+      result: false,
+      error: [{ msg: constantNotify.ERROR }],
+    });
+  }
+};
+
+// Delete Avatar
+exports.deleteAvatar = async (req, res) => {
+  try {
+    const id = req.params.id;
+    adminService.deleteAvatar(id, (err, res_) => {
+      if (err) {
+        return res.send({
+          result: false,
+          error: [err],
+        });
+      }
+
+      return res.send({
+        result: true,
+        data: { msg: constantNotify.DELETE_DATA_SUCCESS },
+      });
+    });
+  } catch (error) {
+    return res.send({
+      result: false,
+      error: [{ msg: constantNotify.ERROR }],
+    });
+  }
+};
+
+// Update Avatar
+exports.updateAvatar = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const fileName = req.file.filename;
+    const maxsize = 2 * 1024 * 1024;
+    if (req.file.size < maxsize) {
+      db.query(
+        `SELECT avatar FROM ${tableAdmin} WHERE id = ${id}`,
+        (err, dataRes) => {
+          if (err) {
+            return res.send({
+              result: false,
+              error: [{ msg: constantNotify.ERROR }],
+            });
+          }
+
+          if (dataRes.length === 0) {
+            return res.send({
+              result: false,
+              error: [{ msg: `ID ${constantNotify.NOT_EXITS}` }],
+            });
+          }
+          sharp(req?.file?.path)
+            .resize({ width: 150, height: 150 })
+            .toFile(`uploads/avatar/thumb/` + fileName, async (err) => {
+              if (err) {
+                if (fs.existsSync(directoryPath + fileName)) {
+                  await fs.unlinkSync(directoryPath + fileName);
+                }
+
+                return res.send({
+                  result: false,
+                  error: [{ msg: constantNotify.ERROR }],
+                });
+              }
+              const admin = new Admin({
+                avatar: fileName,
+                updated_at: Date.now(),
+              });
+              delete admin.name;
+              delete admin.phoneNumber;
+              delete admin.password;
+              delete admin.refresh_token;
+              delete admin.active;
+              delete admin.email;
+              delete admin.created_at;
+
+              adminService.updateAvatar(id, admin, async (err, res_) => {
+                if (err) {
+                  return res.send({
+                    result: false,
+                    error: [err],
+                  });
+                }
+
+                if (
+                  fs.existsSync(directoryPath + dataRes[0]?.avatar) &&
+                  fs.existsSync(directoryThumb + dataRes[0]?.avatar)
+                ) {
+                  await fs.unlinkSync(directoryPath + dataRes[0]?.avatar);
+                  await fs.unlinkSync(directoryThumb + dataRes[0]?.avatar);
+                }
+                if (
+                  fs.existsSync(directoryPath + dataRes[0]?.avatar) &&
+                  !fs.existsSync(directoryThumb + dataRes[0]?.avatar)
+                ) {
+                  await fs.unlinkSync(directoryPath + dataRes[0]?.avatar);
+                }
+
+                if (
+                  !fs.existsSync(directoryPath + dataRes[0]?.avatar) &&
+                  fs.existsSync(directoryThumb + dataRes[0]?.avatar)
+                ) {
+                  await fs.unlinkSync(directoryPath + dataRes[0]?.avatar);
+                }
+                admin.id = id;
+                return res.send({
+                  result: true,
+                  data: {
+                    msg: constantNotify.UPDATE_DATA_SUCCESS,
+                    newData: admin,
+                  },
+                });
+              });
+            });
+        },
+      );
+    } else {
+      if (
+        fs.existsSync(directoryPath + req.file.filename) &&
+        fs.existsSync(directoryThumb + req.file.filename)
+      ) {
+        await fs.unlinkSync(directoryPath + req.file.filename);
+        await fs.unlinkSync(directoryThumb + req.file.filename);
+      }
+      if (
+        fs.existsSync(directoryPath + req.file.filename) &&
+        !fs.existsSync(directoryThumb + req.file.filename)
+      ) {
+        await fs.unlinkSync(directoryPath + req.file.filename);
+      }
+
+      if (
+        !fs.existsSync(directoryPath + req.file.filename) &&
+        fs.existsSync(directoryThumb + req.file.filename)
+      ) {
+        await fs.unlinkSync(directoryPath + req.file.filename);
+      }
+
+      return res.send({
+        result: false,
+        error: [{ msg: constantNotify.VALIDATE_FILE_SIZE }],
+      });
+    }
+  } catch (error) {
+    if (
+      fs.existsSync(directoryPath + req.file.filename) &&
+      fs.existsSync(directoryThumb + req.file.filename)
+    ) {
+      await fs.unlinkSync(directoryPath + req.file.filename);
+      await fs.unlinkSync(directoryThumb + req.file.filename);
+    }
+    if (
+      fs.existsSync(directoryPath + req.file.filename) &&
+      !fs.existsSync(directoryThumb + req.file.filename)
+    ) {
+      await fs.unlinkSync(directoryPath + req.file.filename);
+    }
+
+    if (
+      !fs.existsSync(directoryPath + req.file.filename) &&
+      fs.existsSync(directoryThumb + req.file.filename)
+    ) {
+      await fs.unlinkSync(directoryPath + req.file.filename);
+    }
     return res.send({
       result: false,
       error: [{ msg: constantNotify.ERROR }],

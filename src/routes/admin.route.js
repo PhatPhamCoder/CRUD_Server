@@ -3,10 +3,13 @@ const { body } = require("express-validator");
 const adminControler = require("../controllers/admin.controller");
 const constantNotify = require("../Utils/contanstNotify");
 const { verifyToken } = require("../middlewares/init_jwt");
+const uploadExcel = require("../middlewares/UploadExcel");
+const uploadAvatar = require("../middlewares/uploadAvatar");
 
 module.exports = (app) => {
   router.post(
     "/register",
+    uploadAvatar.single("avatar"),
     [
       body("name", constantNotify.NOT_EMPTY).notEmpty(),
       body("email", constantNotify.NOT_EMPTY).notEmpty(),
@@ -14,7 +17,6 @@ module.exports = (app) => {
       body("password", constantNotify.VALIDATE_PASSWORD).isLength({ min: 8 }),
       body("email", constantNotify.NOT_EMPTY).notEmpty(),
     ],
-    verifyToken,
     adminControler.register,
   );
   router.post(
@@ -32,6 +34,21 @@ module.exports = (app) => {
   router.delete("/delete/:id", verifyToken, adminControler.delete);
   router.put("/active/:id", verifyToken, adminControler.active);
   router.put("/change-password/:id", adminControler.changePassword);
+  router.post("/refresh-token", adminControler.refreshToken);
+  router.get("/export-excel", adminControler.exportExcel);
+  router.post(
+    "/import-excel",
+    uploadExcel.single("import-excel"),
+    adminControler.importExcel,
+  );
+
+  router.put(
+    "/update-avatar/:id",
+    uploadAvatar.single("avatar"),
+    adminControler.updateAvatar,
+  );
+
+  router.put("/delete-avatar/:id", adminControler.deleteAvatar);
 
   app.use("/api/v1/admin", router);
 };

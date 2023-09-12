@@ -31,7 +31,7 @@ const constantNotify = {
   MOVE_COURSE_SUCCESS: "Move course successful",
   MOVE_COURSE_FAILD: "Move course faild",
   NOT_EXITS: "does not exist",
-  VALIDATE_FILE_SIZE: "File size is more than 2MB",
+  VALIDATE_FILE_SIZE: "Photo must be more than 2MB",
   VALIDATE_FILE: "Please select the file to upload",
   DATALIMIT1000: "Data over 1000 . limit",
   NOT_ACTIVE: "not activated",

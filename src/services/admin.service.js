@@ -1,8 +1,10 @@
 const db = require("../models/connectDb");
 const tableAdmin = "tbl_admin";
-const tableRole = "tbl_role";
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const fs = require("fs");
+const path = require("path");
+const __basedir = path.resolve();
 const { signAccesToken, signRefreshToken } = require("../middlewares/init_jwt");
 const constantNotify = require("../Utils/contanstNotify");
 
@@ -108,7 +110,7 @@ exports.getAll = async (offset, limit, keyword, result) => {
     let query = `SELECT ${selectData},(${selectCount}) as total FROM ${tableAdmin} ${orderBy}`;
 
     if (keyword) {
-      const where = `WHERE ${tableAdmin}.phoneNumber LIKE "%${keyword}%" OR ${tableAdmin}.name LIKE "%${keyword}%"`;
+      const where = `WHERE ${tableAdmin}.phoneNumber LIKE "%${keyword}%" OR ${tableAdmin}.name LIKE "%${keyword}%" OR ${tableAdmin}.email LIKE "%${keyword}%"`;
       query = `SELECT ${selectData},(${selectCount} ${where}) as total FROM ${tableAdmin} ${where} ORDER BY ${tableAdmin}.id DESC LIMIT ${offset},${limit}`;
     }
 
@@ -127,7 +129,7 @@ exports.getAll = async (offset, limit, keyword, result) => {
 // GetById
 exports.getById = async (id, result) => {
   try {
-    const query = `SELECT id,email,name,phoneNumber,active FROM ${tableAdmin} WHERE id = ?`;
+    const query = `SELECT id,email,name,phoneNumber,active,avatar FROM ${tableAdmin} WHERE id = ?`;
     db.query(query, id, (err, dataRes) => {
       if (err) {
         return result({ msg: constantNotify.ERROR }, null);
@@ -162,10 +164,17 @@ exports.changePassword = async (id, data, result) => {
 // Update
 exports.update = async (id, data, result) => {
   try {
-    const query = `UPDATE ${tableAdmin} SET name=?,email=?,phoneNumber=?,updated_at=? WHERE id =?`;
+    const query = `UPDATE ${tableAdmin} SET name=?,email=?,phoneNumber=?,active=?,updated_at=? WHERE id =?`;
     db.query(
       query,
-      [data.name, data.email, data.phoneNumber, data.updated_at, id],
+      [
+        data.name,
+        data.email,
+        data.phoneNumber,
+        data.active,
+        data.updated_at,
+        id,
+      ],
       (err, dataRes) => {
         if (err) {
           return result({ msg: constantNotify.ERROR }, null);
@@ -276,5 +285,120 @@ exports.refreshToken = async (userId, resfreshToken, result) => {
     });
   } catch (error) {
     result({ msg: constantNotify.ERROR }, null);
+  }
+};
+
+// export Excel
+exports.exportExcel = async (result) => {
+  try {
+    const query = `SELECT name,phoneNumber,email,active,created_at FROM ${tableAdmin}`;
+
+    db.query(query, (err, dataRes) => {
+      if (err) {
+        return result({ msg: constantNotify.ERROR }, null);
+      }
+
+      return result(null, dataRes);
+    });
+  } catch (error) {
+    return result({ msg: constantNotify.ERROR }, null);
+  }
+};
+
+// import excel
+exports.importExcel = async (data, result) => {
+  try {
+    const insertPromises = [];
+    for (const value of data) {
+      insertPromises.push(
+        new Promise((resolve, reject) => {
+          db.query(`INSERT INTO ${tableAdmin} SET ?`, value, (err, dataRes) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(dataRes.insertId);
+            }
+          });
+        }),
+      );
+    }
+
+    await Promise.all(insertPromises)
+      .then((data) => {
+        result(null, data);
+      })
+      .catch((err) => {
+        result({ msg: constantNotify.ERROR }, null);
+      });
+  } catch (error) {
+    return result({ msg: constantNotify.ERROR }, null);
+  }
+};
+
+// delete Avatar
+exports.deleteAvatar = async (id, result) => {
+  try {
+    db.getConnection((err, conn) => {
+      if (err) {
+        return result({ msg: constantNotify.DB_ERROR }, null);
+      }
+      conn.query(
+        `SELECT avatar FROM ${tableAdmin} WHERE id = ${id}`,
+        (err, dataRes) => {
+          if (err) {
+            return result({ msg: constantNotify.ERROR }, null);
+          }
+
+          if (dataRes.length === 0) {
+            return result({ msg: `ID ${constantNotify.NOT_EXITS}` }, null);
+          }
+          conn.query(
+            `UPDATE ${tableAdmin} SET avatar = NULL WHERE id = ${id}`,
+            async (err, dataRes_) => {
+              if (err) {
+                return result({ msg: constantNotify.ERROR }, null);
+              }
+
+              const directoryPath = path.join(
+                __basedir,
+                "/uploads/avatar/images/",
+              );
+              const directoryThumb = path.join(
+                __basedir,
+                "/uploads/avatar/thumb/",
+              );
+              if (
+                fs.existsSync(directoryPath + dataRes[0]?.avatar) &&
+                fs.existsSync(directoryThumb + dataRes[0]?.avatar)
+              ) {
+                await fs.unlinkSync(directoryPath + dataRes[0]?.avatar);
+                await fs.unlinkSync(directoryThumb + dataRes[0]?.avatar);
+              }
+
+              return result(null, dataRes_);
+            },
+          );
+        },
+      );
+      conn.release();
+    });
+  } catch (error) {
+    return result({ msg: constantNotify.ERROR }, null);
+  }
+};
+
+// Update Avatar
+exports.updateAvatar = async (id, data, result) => {
+  try {
+    const query = `UPDATE ${tableAdmin} SET avatar = ?, updated_at = ? WHERE id = ?`;
+    db.query(query, [data.avatar, data.updated_at, id], (err, dataRes) => {
+      if (err) {
+        return result({ msg: constantNotify.ERROR }, null);
+      }
+
+      return result(null, dataRes);
+    });
+  } catch (error) {
+    return result({ msg: constantNotify.ERROR }, null);
   }
 };
