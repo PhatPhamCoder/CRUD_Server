@@ -340,52 +340,6 @@ exports.refreshToken = async (req, res) => {
 
     await JWT.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, (err) => {
       if (err) {
-        const query = `UPDATE ${tableAdmin} SET refresh_token = 0 WHERE id = ${userId}`;
-        db.query(query, (err) => {
-          if (err) {
-            return res.send({ msg: constantNotify.ERROR }, null);
-          }
-          db.query(
-            `SELECT email FROM ${tableAdmin} WHERE id = ?`,
-            userId,
-            async (err, data_) => {
-              if (err) {
-                return res.send({ msg: constantNotify.ERROR }, null);
-              }
-              if (data_[0]?.email) {
-                const nets = networkInterfaces();
-                const results = {};
-
-                for (const name of Object.keys(nets)) {
-                  for (const net of nets[name]) {
-                    const familyV4Value =
-                      typeof net.family === "string" ? "IPv4" : 4;
-                    if (net.family === familyV4Value && !net.internal) {
-                      if (!results[name]) {
-                        results[name] = [];
-                      }
-                      results[name].push(net.address);
-                    }
-                  }
-                }
-
-                const dataSendEmail = {
-                  to: data_[0]?.email,
-                  text: "Hey user",
-                  subject: "[OPTECH] CẢNH BÁO ĐĂNG NHẬP BẤT THƯỜNG",
-                  html: `Hi bạn,
-                    Chúng tôi nghi ngờ tài khoản của bạn đăng nhập bất thường tại địa chỉ IP: ${
-                      results["Wi-Fi"][0] || results["Ethernet"][0]
-                    }
-                    Bạn vui lòng đăng nhập hệ thống và đổi mật khẩu để bảo vệ tài khoản!
-                    `,
-                };
-
-                await sendEmail(dataSendEmail);
-              }
-            },
-          );
-        });
         return res.send({
           result: false,
           error: [err],
@@ -401,7 +355,7 @@ exports.refreshToken = async (req, res) => {
         }
 
         conn.query(
-          `SELECT id,name,refresh_token FROM tbl_admin WHERE refresh_token LIKE "%${refreshToken}%"`,
+          `SELECT id,name,refresh_token FROM tbl_admin WHERE refresh_token = "${refreshToken}"`,
           async (err, dataRes) => {
             if (err) {
               return res.send({
@@ -421,27 +375,25 @@ exports.refreshToken = async (req, res) => {
               });
             }
 
-            if (dataRes && dataRes.length > 0) {
-              const dataRefresh = {
-                userId: dataRes[0].id,
-                name: dataRes[0].name,
-              };
-              const _token = await signAccesToken(dataRefresh);
-              const _refreshToken = await signRefreshToken(dataRefresh);
+            const dataRefresh = {
+              userId: dataRes[0].id,
+              name: dataRes[0].name,
+            };
+            const _token = await signAccesToken(dataRefresh);
+            const _refreshToken = await signRefreshToken(dataRefresh);
 
-              /**update RefreshToken at DB */
-              const updateToken = `UPDATE ${tableAdmin} SET refresh_token = ? WHERE id = ?`;
-              conn.query(updateToken, [_refreshToken, userId], (err) => {
-                if (err) {
-                  return result({ msg: constantNotify.ERROR }, null);
-                }
-              });
-              return res.send({
-                result: true,
-                newAccessToken: _token,
-                newRefreshToken: _refreshToken,
-              });
-            }
+            /**update RefreshToken at DB */
+            const updateToken = `UPDATE ${tableAdmin} SET refresh_token = ? WHERE id = ?`;
+            conn.query(updateToken, [_refreshToken, userId], (err) => {
+              if (err) {
+                return result({ msg: constantNotify.ERROR }, null);
+              }
+            });
+            return res.send({
+              result: true,
+              newAccessToken: _token,
+              newRefreshToken: _refreshToken,
+            });
           },
         );
         conn.release();

@@ -227,67 +227,6 @@ exports.active = async (id, data, result) => {
   }
 };
 
-// refreshToken
-exports.refreshToken = async (userId, resfreshToken, result) => {
-  try {
-    db.getConnection((err, conn) => {
-      if (err) {
-        return result({ msg: constantNotify.DB_ERROR }, null);
-      }
-      const query = `SELECT * FROM tbl_admin WHERE refresh_token LIKE "%${resfreshToken}%" AND id = ${userId}`;
-      conn.query(query, async (err, dataRes) => {
-        if (err) {
-          result({ msg: constantNotify.ERROR }, null);
-        }
-        if (dataRes.length === 0) {
-          const query = `UPDATE ${tableAdmin} SET refresh_token=0 WHERE id = ${userId}`;
-          conn.query(query, async (err, dataRes_) => {
-            if (err) {
-              result({ msg: constantNotify.ERROR }, null);
-              return;
-            }
-          });
-        }
-        if (dataRes.length > 0) {
-          await jwt.sign(
-            resfreshToken,
-            constantNotify.REFRESH_TOKEN,
-            async (err, dataVerify) => {
-              if (err) {
-                result({ msg: constantNotify.ERROR }, null);
-              }
-              const accessToken = await jwt.sign(
-                { userId },
-                constantNotify.ACCESS_TOKEN,
-                {
-                  expiresIn: constantNotify.TOKEN_TIME_LIFE,
-                },
-              );
-
-              const refreshToken = await jwt.sign(
-                { userId },
-                constantNotify.REFRESH_TOKEN,
-                { expiresIn: constantNotify.REFRESH_TOKEN_TIME_LIFE },
-              );
-
-              const query = `UPDATE tbl_admin SET refresh_token = ? WHERE id=?`;
-              conn.query(query, [refreshToken, userId], (err, dataRes__) => {
-                if (err) {
-                  result({ msg: constantNotify.ERROR }, null);
-                }
-              });
-              result(null, { accessToken, refreshToken });
-            },
-          );
-        }
-      });
-      conn.release();
-    });
-  } catch (error) {
-    result({ msg: constantNotify.ERROR }, null);
-  }
-};
-
 // export Excel
 exports.exportExcel = async (result) => {
   try {
