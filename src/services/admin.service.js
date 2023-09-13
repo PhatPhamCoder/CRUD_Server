@@ -1,7 +1,6 @@
 const db = require("../models/connectDb");
 const tableAdmin = "tbl_admin";
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 const fs = require("fs");
 const path = require("path");
 const __basedir = path.resolve();

@@ -52,7 +52,7 @@ module.exports = (app) => {
     adminControler.updateAvatar,
   );
 
-  router.put("/delete-avatar/:id", adminControler.deleteAvatar);
+  router.put("/delete-avatar/:id", verifyToken, adminControler.deleteAvatar);
 
   app.use("/api/v1/admin", router);
 };
