@@ -33,7 +33,11 @@ module.exports = (app) => {
   router.put("/update/:id", verifyToken, adminControler.update);
   router.delete("/delete/:id", verifyToken, adminControler.delete);
   router.put("/active/:id", verifyToken, adminControler.active);
-  router.put("/change-password/:id", adminControler.changePassword);
+  router.put(
+    "/change-password/:id",
+    verifyToken,
+    adminControler.changePassword,
+  );
   router.post("/refresh-token", adminControler.refreshToken);
   router.get("/export-excel", adminControler.exportExcel);
   router.post(
