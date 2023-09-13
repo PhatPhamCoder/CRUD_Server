@@ -376,8 +376,8 @@ exports.refreshToken = async (req, res) => {
             }
 
             const dataRefresh = {
-              userId: dataRes[0].id,
-              name: dataRes[0].name,
+              userId: dataRes[0]?.id,
+              name: dataRes[0]?.name,
             };
             const _token = await signAccesToken(dataRefresh);
             const _refreshToken = await signRefreshToken(dataRefresh);
