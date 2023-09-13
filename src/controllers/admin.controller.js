@@ -19,6 +19,8 @@ const adminService = require("../services/admin.service");
 var directoryPath = path.join(__basedir, "/uploads/avatar/images/");
 var directoryThumb = path.join(__basedir, "/uploads/avatar/thumb/");
 
+var directoryExcel = __basedir + "/uploads/excel/";
+
 // Register
 exports.register = async (req, res) => {
   try {
@@ -771,7 +773,6 @@ exports.changePassword = async (req, res) => {
       },
     );
   } catch (error) {
-    console.error(error);
     return res.send({
       result: false,
       error: [{ msg: constantNotify.ERROR }],
@@ -841,7 +842,6 @@ exports.importExcel = async (req, res) => {
         return dataSame;
       })
       .then(async (data) => {
-        const directoryExcel = __basedir + "/uploads/excel/";
         if (data.length > 0) {
           if (fs.existsSync(directoryExcel + fileName)) {
             await fs.unlinkSync(directoryExcel + fileName);
@@ -866,7 +866,7 @@ exports.importExcel = async (req, res) => {
           };
         });
 
-        adminService.importExcel(dataAdmin, (err, res_) => {
+        adminService.importExcel(dataAdmin, async (err, res_) => {
           if (err) {
             return res.send({
               result: false,
@@ -874,16 +874,35 @@ exports.importExcel = async (req, res) => {
             });
           }
 
+          const dataInsert = dataAdmin?.map((item, i) => {
+            const mappedItem = {
+              id: res_[i],
+              name: item["name"],
+              phoneNumber: item["phoneNumber"],
+              email: item["email"],
+              active: item["active"],
+              created_at: Date.now(),
+            };
+            return mappedItem;
+          });
+
+          if (fs.existsSync(directoryExcel + req.file.filename)) {
+            await fs.unlinkSync(directoryExcel + req.file.filename);
+          }
+
           return res.send({
             result: true,
             data: {
               msg: constantNotify.ADD_DATA_SUCCESS,
-              newData: dataAdmin,
+              newData: dataInsert,
             },
           });
         });
       });
   } catch (error) {
+    if (fs.existsSync(directoryExcel + req.file.filename)) {
+      await fs.unlinkSync(directoryExcel + req.file.filename);
+    }
     return res.send({
       result: false,
       error: [{ msg: constantNotify.ERROR }],
