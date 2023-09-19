@@ -367,7 +367,7 @@ exports.refreshToken = async (req, res) => {
               const query = `UPDATE ${tableAdmin} SET refresh_token = 0 WHERE id = ${userId}?`;
               conn.query(query, (err) => {
                 if (err) {
-                  return res.send({
+                  res.send({
                     result: false,
                     error: [{ msg: constantNotify.ERROR }],
                   });
@@ -774,11 +774,11 @@ exports.importExcel = async (req, res) => {
       queryPromse.push(
         new Promise((resolve, reject) => {
           const query = `SELECT email FROM ${tableAdmin} WHERE email = "${item["email"]}"`;
-          db.query(query, (err, dataRes) => {
+          db.query(query, [item["email"]], (err, dataRes) => {
             if (err) {
               reject(err);
             }
-            resolve({ dataRes, index: ++index });
+            resolve({ dataRes, index: ++index, email: item["email"] });
           });
         }),
       );
@@ -788,7 +788,7 @@ exports.importExcel = async (req, res) => {
         const dataSame = [];
         data?.forEach((item) => {
           if (item.dataRes?.length > 0) {
-            dataSame.push(item.index);
+            dataSame.push(item.index, item.email);
           }
         });
         return dataSame;
@@ -798,9 +798,25 @@ exports.importExcel = async (req, res) => {
           if (fs.existsSync(directoryExcel + fileName)) {
             await fs.unlinkSync(directoryExcel + fileName);
           }
+          const objects = [];
+
+          for (let i = 0; i < data.length; i += 2) {
+            const obj = {
+              id: data[i],
+              email: data[i + 1],
+            };
+            objects.push(obj);
+          }
+
           return res.send({
             result: false,
-            error: [{ msg: `Tài khoản Admin STT ${data.join()} đã tồn tại` }],
+            // error: [{ msg: `Tài khoản Admin STT ${data.join()} đã tồn tại` }],
+            error: [
+              {
+                msg: constantNotify.IMPORT_ERROR,
+                dataSame: objects,
+              },
+            ],
           });
         }
 
@@ -852,8 +868,8 @@ exports.importExcel = async (req, res) => {
         });
       });
   } catch (error) {
-    if (fs.existsSync(directoryExcel + req.file.filename)) {
-      await fs.unlinkSync(directoryExcel + req.file.filename);
+    if (fs.existsSync(directoryExcel + req?.file?.filename)) {
+      await fs.unlinkSync(directoryExcel + req?.file?.filename);
     }
     return res.send({
       result: false,
@@ -1023,6 +1039,62 @@ exports.updateAvatar = async (req, res) => {
     ) {
       await fs.unlinkSync(directoryPath + req.file.filename);
     }
+    return res.send({
+      result: false,
+      error: [{ msg: constantNotify.ERROR }],
+    });
+  }
+};
+
+// Delete Select
+exports.deleteSelect = async (req, res) => {
+  try {
+    const { deleteIds } = req.body;
+    const data = deleteIds.map((value) => ({ id: value }));
+    const queryPromse = [];
+    data?.forEach((item, index) => {
+      queryPromse.push(
+        new Promise((resolve, reject) => {
+          const query = `SELECT id,avatar FROM ${tableAdmin} WHERE id = ${item["id"]}`;
+          db.query(query, (err, dataRes) => {
+            if (err) {
+              reject(err);
+            }
+            resolve({ dataRes, index: ++index, avatar: item["avatar"] });
+          });
+        }),
+      );
+    });
+    const queryResults = await Promise.all(queryPromse);
+
+    const dataAvatar = queryResults
+      .filter((item) => item.dataRes.length > 0)
+      .map((item) => item.dataRes[0].avatar);
+
+    dataAvatar.map(async (item) => {
+      if (
+        fs.existsSync(directoryPath + item) &&
+        fs.existsSync(directoryThumb + item)
+      ) {
+        await fs.unlinkSync(directoryPath + item);
+        await fs.unlinkSync(directoryThumb + item);
+      }
+    });
+
+    adminService.deleteSelect(deleteIds, (err, res_) => {
+      if (err) {
+        return res.send({
+          result: false,
+          error: [err],
+        });
+      }
+
+      return res.send({
+        result: true,
+        data: { msg: constantNotify.DELETE_DATA_SUCCESS },
+      });
+    });
+  } catch (error) {
     return res.send({
       result: false,
       error: [{ msg: constantNotify.ERROR }],

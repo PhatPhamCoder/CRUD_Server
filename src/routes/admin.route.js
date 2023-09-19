@@ -53,6 +53,7 @@ module.exports = (app) => {
   );
 
   router.put("/delete-avatar/:id", verifyToken, adminControler.deleteAvatar);
+  router.post("/delete-select", verifyToken, adminControler.deleteSelect);
 
   app.use("/api/v1/admin", router);
 };

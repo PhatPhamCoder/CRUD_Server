@@ -42,6 +42,7 @@ const constantNotify = {
   NOT_EMPTY: "do not leave blank",
   NOT_AUTH: "User not authenticated",
   VERIFY_SUCCESS: "Verify success",
+  IMPORT_ERROR: "Import is error",
 };
 
 module.exports = constantNotify;

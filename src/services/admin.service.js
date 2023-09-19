@@ -340,3 +340,21 @@ exports.updateAvatar = async (id, data, result) => {
     return result({ msg: constantNotify.ERROR }, null);
   }
 };
+
+// Delete Select
+exports.deleteSelect = async (data, result) => {
+  try {
+    db.query(
+      `DELETE FROM ${tableAdmin} WHERE id IN (${data.join(",")})`,
+      (err, dataRes) => {
+        if (err) {
+          return result({ msg: constantNotify.ERROR }, null);
+        }
+
+        return result(null, dataRes);
+      },
+    );
+  } catch (error) {
+    return result({ msg: constantNotify.ERROR }, null);
+  }
+};
