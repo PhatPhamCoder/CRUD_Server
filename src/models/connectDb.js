@@ -1,12 +1,12 @@
-const mysql = require("mysql2");
-const dbconfig = require("../config/db.config");
+var mysql = require("mysql2");
+var dbconfig = require("../config/db.config");
 
-const connection = mysql.createPool({
+var connection = mysql.createPool({
   host: dbconfig.HOST,
   user: dbconfig.USER,
   password: dbconfig.PASSWORD,
   database: dbconfig.DATABASE,
-  port: dbconfig.PORT,
+  port: dbconfig.PORT || 3306,
 });
 
 connection.getConnection(function (err, connection) {
