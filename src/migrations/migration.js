@@ -16,3 +16,5 @@ migration.init(connection, __dirname, function () {
 // node migration.js add migration create_table_name
 // node migration.js add seed create_table_name
 // node migration.js up --migrate-all
+
+/** https://github.com/kawadhiya21/mysql-migrations */

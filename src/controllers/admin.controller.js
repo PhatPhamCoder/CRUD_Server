@@ -854,8 +854,8 @@ exports.importExcel = async (req, res) => {
             return mappedItem;
           });
 
-          if (fs.existsSync(directoryExcel + req.file.filename)) {
-            await fs.unlinkSync(directoryExcel + req.file.filename);
+          if (fs.existsSync(directoryExcel + req?.file?.filename)) {
+            await fs.unlinkSync(directoryExcel + req?.file?.filename);
           }
 
           return res.send({
